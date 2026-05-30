@@ -36,6 +36,8 @@ class AppDelegate: FlutterAppDelegate {
     // Setup status bar immediately (synchronously)
     setupStatusBar()
   }
+  
+  private func handleMethodCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     switch call.method {
     case "updateProxyGroups":
       if let args = call.arguments as? [String: Any],
