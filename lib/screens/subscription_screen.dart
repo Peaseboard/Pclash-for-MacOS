@@ -171,7 +171,7 @@ class _SubscriptionScreenState extends ConsumerState<SubscriptionScreen> {
 
   Future<void> _updateSubscription(Subscription sub) async {
     final notifier = ref.read(subscriptionsProvider.notifier);
-    final content = await notifier.fetch(sub);
+    final content = await subscription_manager.SubscriptionManager().fetchSubscription(sub);
 
     if (content != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

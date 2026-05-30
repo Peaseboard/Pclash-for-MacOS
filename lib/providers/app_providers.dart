@@ -64,7 +64,7 @@ class ConnectionNotifier extends StateNotifier<bool> {
         AppLogger.warning('No active config found, using default');
       }
 
-      final started = await _manager!.start(configContent: configContent);
+      final started = await _manager!.start(subscriptionContent: configContent);
       if (!started) throw Exception('Mihomo failed to start');
 
       AppLogger.info('Mihomo started successfully');
@@ -275,10 +275,11 @@ class SubscriptionNotifier extends StateNotifier<AsyncValue<List<Subscription>>>
 // --- Persistent Settings ---
 final settingsProvider = StateNotifierProvider<SettingsNotifier, AppSettings>((ref) => SettingsNotifier());
 class AppSettings {
+  final bool systemProxy;
   final bool autoStart;
   final String themeMode;
-  const AppSettings({this.autoStart = false, this.themeMode = 'system'});
-  AppSettings copyWith({bool? autoStart, String? themeMode}) => AppSettings(autoStart: autoStart ?? this.autoStart, themeMode: themeMode ?? this.themeMode);
+  const AppSettings({this.autoStart = false, this.themeMode = 'system', this.systemProxy = false});
+  AppSettings copyWith({bool? autoStart, String? themeMode, bool? systemProxy}) => AppSettings(autoStart: autoStart ?? this.autoStart, themeMode: themeMode ?? this.themeMode, systemProxy: systemProxy ?? this.systemProxy);
 }
 
 class SettingsNotifier extends StateNotifier<AppSettings> {
@@ -289,4 +290,5 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     state = state.copyWith(autoStart: value);
   }
   Future<void> setThemeMode(String value) async => state = state.copyWith(themeMode: value);
+  Future<void> setSystemProxy(bool value) async => state = state.copyWith(systemProxy: value);
 }
