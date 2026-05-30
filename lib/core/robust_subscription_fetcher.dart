@@ -95,7 +95,7 @@ class RobustSubscriptionFetcher {
       if (response.statusCode == 200) {
         final body = await response.transform(utf8.decoder).join();
         final data = jsonDecode(body) as Map<String, dynamic>;
-        final answers = dat['Answer'] as List?;
+        final answers = data['Answer'] as List?;
         if (answers != null) {
           for (final a in answers) {
             if (a['type'] == 1) return a['data'] as String?;
