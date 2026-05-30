@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=PClash
+Comment=Modern Multi-Platform Proxy Client
+Exec=pclash
+Icon=pclash
+Terminal=false
+Type=Application
+Categories=Network;

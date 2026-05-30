@@ -1,0 +1,51 @@
+# Flutter
+.dart_tool/
+.packages
+build/
+*.iml
+*.ios.iml
+*.android.iml
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Platform-specific
+android/app/.cxx/
+android/.gradle/
+android/.idea/
+android/local.properties
+android/*/build/
+ios/.generated/
+ios/Flutter/Flutter.framework/
+ios/Flutter/App.framework/
+macos/Build/
+macos/Pods/
+windows/runner/GeneratedPluginRegistrant.*
+windows/flutter/ephemeral/
+linux/flutter/ephemeral/
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.*
+
+# Release artifacts
+*.apk
+*.aab
+*.dmg
+*.exe
+*.msi
+*.deb
+*.rpm

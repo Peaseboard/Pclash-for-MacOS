@@ -1,0 +1,62 @@
+name: pclash
+description: PCLash - A modern multi-platform proxy client powered by Mihomo.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # State management
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+  # HTTP & WebSocket
+  dio: ^5.4.0
+  web_socket_channel: ^2.4.0
+  # Local storage
+  shared_preferences: ^2.2.2
+  # File & path utilities
+  path_provider: ^2.1.2
+  path: ^1.9.0
+  # Config parsing
+  yaml: ^3.1.2
+  # Process management
+  process_run: ^0.14.0
+  # HTTP server for local PAC (macOS)
+  shelf: ^1.4.1
+  shelf_router: ^1.1.4
+  # UI
+  flutter_slidable: ^3.1.0
+  cached_network_image: ^3.3.1
+  # Utils
+  uuid: ^4.3.3
+  intl: ^0.19.0
+  http: ^1.2.0
+  # UI Components
+  fl_chart: ^0.68.0       # Traffic charts
+  file_picker: ^6.1.1     # Import local configs
+  share_plus: ^7.2.1      # Share configs
+  # Platform channel
+  plugin_platform_interface: ^2.1.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  riverpod_generator: ^2.4.0
+  build_runner: ^2.4.8
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/mihomo/
+    - assets/icons/
+
+# Supported Windows architectures (root level)
+windows:
+  supported_platforms:
+    - windows_x64
+    - windows_x86
+    - windows_arm64

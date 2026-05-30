@@ -1,0 +1,150 @@
+# PClash Configuration
+# 客户可以通过修改此文件自定义品牌、颜色、API 地址等
+# 文件名：branding.yaml
+
+app:
+  # 应用名称（显示在任务栏、关于页面等）
+  name: "PClash"
+  # 应用简短描述
+  tagline: "Modern Proxy Client"
+  # 版本号
+  version: "1.0.0"
+  # 包名/Bundle ID（Android/iOS/macOS 使用）
+  package_name: "com.pclash.app"
+  # Windows/Linux 可执行文件名
+  executable: "pclash"
+
+# Subscription Integration
+pboard:
+  # Subscription API Base URL
+  base_url: "https://your-domain.com"
+  # 订阅 API 路径（相对路径）
+  subscribe_path: "/api/v1/client/subscribe"
+  # 用户中心 URL（可选，点击跳转到网页版）
+  user_panel_url: "https://your-domain.com/user"
+  # Enable subscription integration（false 则仅支持手动导入订阅）
+  enabled: true
+  # 是否允许用户自定义订阅 URL
+  allow_custom_subscription: true
+  # Show brand link
+  show_brand_link: true
+
+# 主题配置
+theme:
+  # 主色调（Material 3 seed color）
+  primary_color: "#3B82F6"
+  # 次要色调
+  secondary_color: "#10B981"
+  # 强调色
+  accent_color: "#F59E0B"
+  # 背景色（亮色主题）
+  background_light: "#FFFFFF"
+  # 背景色（暗色主题）
+  background_dark: "#0F172A"
+  # 是否允许用户切换主题
+  allow_theme_switch: true
+
+# 图标配置
+icons:
+  # 应用图标路径（相对于 assets/icons/）
+  app_icon: "app_icon.png"
+  # 启动画面背景色
+  splash_background: "#3B82F6"
+  # 启动画面 Logo 路径
+  splash_logo: "splash_logo.png"
+
+# 默认配置
+defaults:
+  # 默认代理模式（rule/global/direct）
+  proxy_mode: "rule"
+  # 默认代理端口
+  mixed_port: 7890
+  # 默认 API 端口
+  api_port: 9090
+  # 是否默认启用系统代理
+  system_proxy_default: true
+  # 是否默认开机自启
+  auto_start_default: false
+  # 延迟测试 URL
+  delay_test_url: "https://www.gstatic.com/generate_204"
+  # 延迟测试超时（毫秒）
+  delay_test_timeout: 5000
+
+# 功能开关
+features:
+  # 节点延迟测试
+  delay_test: true
+  # 流量实时监控
+  traffic_monitor: true
+  # 连接详情查看
+  connection_details: true
+  # 日志查看
+  log_viewer: true
+  # GEO 数据库更新
+  geo_update: true
+  # 订阅自动刷新
+  subscription_auto_refresh: true
+  # 订阅自动刷新间隔（小时）
+  subscription_refresh_interval: 24
+  # 是否显示广告（留作未来商业化）
+  show_ads: false
+
+# 法律声明
+legal:
+  # 隐私政策 URL
+  privacy_policy_url: "https://your-domain.com/privacy/"
+  # 服务条款 URL
+  terms_of_service_url: "https://your-domain.com/terms/"
+  # 帮助中心 URL
+  help_url: "https://your-domain.com/help/"
+  # 联系邮箱
+  support_email: "support@your-domain.com"
+  # 版权信息
+  copyright: "© 2024-2026 PClash Contributors. All rights reserved."
+
+# 构建配置
+build:
+  # Android
+  android:
+    # 应用 ID
+    application_id: "com.pclash.app"
+    # 最低 SDK 版本
+    min_sdk: 24
+    # 目标 SDK 版本
+    target_sdk: 34
+    # 支持的 ABI
+    abi_filters: ["arm64-v8a", "x86_64"]
+    # 是否启用代码混淆
+    minify_enabled: true
+    # 是否启用资源压缩
+    shrink_resources: false
+    # 签名配置（keystore 路径）
+    keystore_path: "../keystore/pclash-release.jks"
+    keystore_alias: "pclash"
+  
+  # macOS
+  macos:
+    # Bundle ID
+    bundle_id: "com.pclash.app"
+    # 最低 macOS 版本
+    deployment_target: "10.15"
+    # 团队 ID（Apple Developer）
+    team_id: ""
+    # 是否需要签名（发布时必须为 true）
+    code_signing: false
+  
+  # Windows
+  windows:
+    # 公司名称
+    company_name: "PClash Contributors"
+    # 文件描述
+    file_description: "PClash Proxy Client"
+    # 版权
+    copyright: "Copyright (C) 2024-2026 PClash Contributors"
+  
+  # Linux
+  linux:
+    # 应用 ID（用于 .desktop 文件）
+    app_id: "com.pclash.app"
+    # 应用类别
+    categories: ["Network", "Utility"]
