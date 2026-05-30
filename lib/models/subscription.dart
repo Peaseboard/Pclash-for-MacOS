@@ -59,7 +59,7 @@ class Subscription {
       "url": url,
       "filePath": filePath,
       "lastUpdated": lastUpdated.toIso8601String(),
-      "expire": expire?.millisecondsSinceEpoch ~/ 1000,
+      "expire": expire != null ? expire!.millisecondsSinceEpoch ~/ 1000 : null,
       "total": total,
       "used": used,
     };
