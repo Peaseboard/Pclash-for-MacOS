@@ -35,6 +35,7 @@ class AppDelegate: FlutterAppDelegate {
     
     // Setup status bar immediately (synchronously)
     setupStatusBar()
+    setupProxyChannel()
   }
   
   private func handleMethodCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -75,7 +76,8 @@ class AppDelegate: FlutterAppDelegate {
     }
   }
   
-  private func setupStatusBar() {
+  private func setupStatusBar()
+    setupProxyChannel() {
     print("PClash: Setting up status bar...")
     statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     
@@ -253,4 +255,77 @@ class AppDelegate: FlutterAppDelegate {
   override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
     return true
   }
+
+
+  // --- System Proxy Implementation (Referencing FlClash/Bettbox patterns) ---
+  private func setupProxyChannel() {
+    if let controller = mainFlutterWindow?.contentViewController as? FlutterViewController {
+      let proxyChannel = FlutterMethodChannel(name: "com.pclash.app/proxy", binaryMessenger: controller.engine.binaryMessenger)
+      proxyChannel.setMethodCallHandler { [weak self] call, result in
+        self?.handleProxyMethod(call, result: result)
+      }
+    }
+  }
+
+  private func handleProxyMethod(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "setSystemProxy":
+      if let args = call.arguments as? [String: Any],
+         let enabled = args["enabled"] as? Bool,
+         let port = args["port"] as? Int {
+        setSystemProxy(enabled: enabled, port: port, result: result)
+      } else {
+        result(FlutterError(code: "INVALID_ARGS", message: "Invalid arguments", details: nil))
+      }
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  private func setSystemProxy(enabled: Bool, port: Int, result: @escaping FlutterResult) {
+    // Get all network services
+    let listTask = Process()
+    listTask.launchPath = "/usr/sbin/networksetup"
+    listTask.arguments = ["-listallnetworkservices"]
+    let pipe = Pipe()
+    listTask.standardOutput = pipe
+    listTask.launch()
+    listTask.waitUntilExit()
+    
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    if let output = String(data: data, encoding: .utf8) {
+      let services = output.split(separator: "\n").map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty && $0 != "*" }
+      
+      var successCount = 0
+      for service in services {
+        let task = Process()
+        task.launchPath = "/usr/sbin/networksetup"
+        if enabled {
+          // Set Web and Secure Web Proxy
+          task.arguments = ["-setwebproxy", service, "127.0.0.1", "\(port)", "-setsecurewebproxy", service, "127.0.0.1", "\(port)"]
+        } else {
+          // Disable Proxies
+          task.arguments = ["-setwebproxystate", service, "off", "-setsecurewebproxystate", service, "off"]
+        }
+        
+        let errorPipe = Pipe()
+        task.standardError = errorPipe
+        task.launch()
+        task.waitUntilExit()
+        
+        if task.terminationStatus == 0 {
+          successCount += 1
+        }
+      }
+      
+      if successCount > 0 {
+        result(nil)
+      } else {
+        result(FlutterError(code: "PROXY_FAILED", message: "Failed to set proxy on any interface", details: nil))
+      }
+    } else {
+      result(FlutterError(code: "LIST_FAILED", message: "Could not list network services", details: nil))
+    }
+  }
+
 }
