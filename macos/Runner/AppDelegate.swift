@@ -9,7 +9,6 @@ class AppDelegate: FlutterAppDelegate {
   private var channel: FlutterMethodChannel?
   private var proxyChannel: FlutterMethodChannel?
   
-  // Menu state
   private var isSystemProxyEnabled = false
   private var proxyGroups: [(name: String, nodes: [String])] = []
   private var currentMode = "rule"
@@ -22,27 +21,25 @@ class AppDelegate: FlutterAppDelegate {
 
   override func applicationDidFinishLaunching(_ notification: Notification) {
     super.applicationDidFinishLaunching(notification)
-    
     NSApp.setActivationPolicy(.regular)
     NSApplication.shared.mainMenu = createMainMenu()
     
-    // Setup Flutter channels
     if let controller = mainFlutterWindow?.contentViewController as? FlutterViewController {
-      // Status Bar Channel
       channel = FlutterMethodChannel(name: "com.pclash.app/status_bar", binaryMessenger: controller.engine.binaryMessenger)
       channel?.setMethodCallHandler { [weak self] call, result in
         self?.handleStatusBarMethodCall(call, result: result)
       }
       
-      // System Proxy Channel
-      proxyChannel = FlutterMethodChannel(name: "com.pclash.app/proxy", binaryMessenger: controller.engine.binaryMessenger)
-      print(🔥 PROXY CHANNEL SETUP SUCCESS)
-      proxyChannel.setMethodCallHandler { [weak self] call, result in
-        self?.handleProxyMethod(call, result: result)
+      // Fix: Optional unwrapping for macOS 26 compatibility
+      if let proxyCh = FlutterMethodChannel(name: "com.pclash.app/proxy", binaryMessenger: controller.engine.binaryMessenger) {
+        proxyChannel = proxyCh
+        proxyCh.setMethodCallHandler { [weak self] call, result in
+          self?.handleProxyMethod(call, result: result)
+        }
+        print("🔥 PROXY CHANNEL SETUP SUCCESS")
       }
     }
     
-    // Setup status bar immediately (synchronously)
     setupStatusBar()
   }
   
@@ -84,7 +81,6 @@ class AppDelegate: FlutterAppDelegate {
     }
   }
   
-  // --- System Proxy Implementation ---
   private func handleProxyMethod(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     switch call.method {
     case "setSystemProxy":
@@ -101,7 +97,6 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   private func setSystemProxy(enabled: Bool, port: Int, result: @escaping FlutterResult) {
-    // Get all network services
     let listTask = Process()
     listTask.launchPath = "/usr/sbin/networksetup"
     listTask.arguments = ["-listallnetworkservices"]
@@ -112,17 +107,16 @@ class AppDelegate: FlutterAppDelegate {
     
     let data = pipe.fileHandleForReading.readDataToEndOfFile()
     if let output = String(data: data, encoding: .utf8) {
-      let services = output.split(separator: "\n").map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty && $0 != "*" }
+      let services = output.split(separator: "
+").map { String(/usr/bin/bash).trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !/usr/bin/bash.isEmpty && /usr/bin/bash != "*" }
       
       var successCount = 0
       for service in services {
         let task = Process()
         task.launchPath = "/usr/sbin/networksetup"
         if enabled {
-          // Set Web and Secure Web Proxy
           task.arguments = ["-setwebproxy", service, "127.0.0.1", "\(port)", "-setsecurewebproxy", service, "127.0.0.1", "\(port)"]
         } else {
-          // Disable Proxies
           task.arguments = ["-setwebproxystate", service, "off", "-setsecurewebproxystate", service, "off"]
         }
         
@@ -131,65 +125,41 @@ class AppDelegate: FlutterAppDelegate {
         task.launch()
         task.waitUntilExit()
         
-        if task.terminationStatus == 0 {
-          successCount += 1
-        }
+        if task.terminationStatus == 0 { successCount += 1 }
       }
       
-      if successCount > 0 {
-        result(nil)
-      } else {
-        result(FlutterError(code: "PROXY_FAILED", message: "Failed to set proxy on any interface", details: nil))
-      }
+      if successCount > 0 { result(nil) }
+      else { result(FlutterError(code: "PROXY_FAILED", message: "Failed to set proxy", details: nil)) }
     } else {
-      result(FlutterError(code: "LIST_FAILED", message: "Could not list network services", details: nil))
+      result(FlutterError(code: "LIST_FAILED", message: "Could not list services", details: nil))
     }
   }
-  // ----------------------------------
   
   private func setupStatusBar() {
-    print("PClash: Setting up status bar...")
     statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    
-    // Fallback to text first
     statusItem.button?.title = "PClash"
-    statusItem.button?.font = NSFont.boldSystemFont(ofSize: 12)
-    
-    // Try to load icon
     if let iconImage = NSImage(named: "AppIcon") {
       iconImage.size = NSSize(width: 16, height: 16)
-      iconImage.isTemplate = false // Show color
+      iconImage.isTemplate = false
       statusItem.button?.image = iconImage
-      statusItem.button?.title = "" // Clear text if icon loaded
-      print("PClash: Status bar icon loaded successfully.")
-    } else {
-      print("PClash: Warning - Could not load AppIcon for status bar.")
+      statusItem.button?.title = ""
     }
-    
     rebuildStatusMenu()
-    print("PClash: Status bar menu assigned.")
   }
   
   private func rebuildStatusMenu() {
     statusMenu = NSMenu()
-    
-    // Status
     let statusTitle = isSystemProxyEnabled ? "✅ 系统代理已开启" : " 系统代理未开启"
-    let statusItem = NSMenuItem(title: statusTitle, action: nil, keyEquivalent: "")
-    statusItem.isEnabled = false
-    statusMenu.addItem(statusItem)
+    statusMenu.addItem(NSMenuItem(title: statusTitle, action: nil, keyEquivalent: ""))
     statusMenu.addItem(NSMenuItem.separator())
     
-    // Toggle
     let toggleTitle = isSystemProxyEnabled ? "关闭系统代理" : "开启系统代理"
     let toggleItem = NSMenuItem(title: toggleTitle, action: #selector(toggleSystemProxy), keyEquivalent: "")
     toggleItem.target = self
     statusMenu.addItem(toggleItem)
     statusMenu.addItem(NSMenuItem.separator())
     
-    // Mode
     let modeLabel = NSMenuItem(title: "代理模式: \(currentMode.uppercased())", action: nil, keyEquivalent: "")
-    modeLabel.isEnabled = false
     statusMenu.addItem(modeLabel)
     
     let modeMenu = NSMenu()
@@ -205,7 +175,6 @@ class AppDelegate: FlutterAppDelegate {
     statusMenu.addItem(modeSelector)
     statusMenu.addItem(NSMenuItem.separator())
     
-    // Groups
     for group in proxyGroups {
       let groupMenu = NSMenu()
       for node in group.nodes.prefix(20) {
@@ -218,17 +187,12 @@ class AppDelegate: FlutterAppDelegate {
       groupSelector.submenu = groupMenu
       statusMenu.addItem(groupSelector)
     }
-    
     if !proxyGroups.isEmpty { statusMenu.addItem(NSMenuItem.separator()) }
     
-    // Traffic
     let trafficTitle = "↑ \(trafficUp)  ↓ \(trafficDown)"
-    let trafficItem = NSMenuItem(title: trafficTitle, action: nil, keyEquivalent: "")
-    trafficItem.isEnabled = false
-    statusMenu.addItem(trafficItem)
+    statusMenu.addItem(NSMenuItem(title: trafficTitle, action: nil, keyEquivalent: ""))
     statusMenu.addItem(NSMenuItem.separator())
     
-    // Actions
     let settingsItem = NSMenuItem(title: "设置…", action: #selector(openSettings), keyEquivalent: ",")
     settingsItem.target = self
     statusMenu.addItem(settingsItem)
@@ -267,8 +231,6 @@ class AppDelegate: FlutterAppDelegate {
   
   private func createMainMenu() -> NSMenu {
     let mainMenu = NSMenu(title: "PClash")
-    
-    // App
     let appItem = NSMenuItem()
     let appMenu = NSMenu(title: "PClash")
     appMenu.addItem(NSMenuItem(title: "关于 PClash", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: ""))
@@ -279,14 +241,12 @@ class AppDelegate: FlutterAppDelegate {
     appItem.submenu = appMenu
     mainMenu.addItem(appItem)
     
-    // File
     let fileItem = NSMenuItem()
     let fileMenu = NSMenu(title: "文件")
     fileMenu.addItem(NSMenuItem(title: "关闭窗口", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
     fileItem.submenu = fileMenu
     mainMenu.addItem(fileItem)
     
-    // Edit (Removed undo/redo)
     let editItem = NSMenuItem()
     let editMenu = NSMenu(title: "编辑")
     editMenu.addItem(NSMenuItem(title: "剪切", action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
@@ -296,14 +256,12 @@ class AppDelegate: FlutterAppDelegate {
     editItem.submenu = editMenu
     mainMenu.addItem(editItem)
     
-    // View
     let viewItem = NSMenuItem()
     let viewMenu = NSMenu(title: "显示")
     viewMenu.addItem(NSMenuItem(title: "全屏", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f"))
     viewItem.submenu = viewMenu
     mainMenu.addItem(viewItem)
     
-    // Window
     let windowItem = NSMenuItem()
     let windowMenu = NSMenu(title: "窗口")
     windowMenu.addItem(NSMenuItem(title: "最小化", action: #selector(NSWindow.miniaturize(_:)), keyEquivalent: "m"))
@@ -311,7 +269,6 @@ class AppDelegate: FlutterAppDelegate {
     windowItem.submenu = windowMenu
     mainMenu.addItem(windowItem)
     
-    // Help
     let helpItem = NSMenuItem()
     let helpMenu = NSMenu(title: "帮助")
     helpMenu.addItem(NSMenuItem(title: "PClash 帮助", action: nil, keyEquivalent: ""))
