@@ -249,4 +249,8 @@ class AppDelegate: FlutterAppDelegate {
     
     return mainMenu
   }
+
+  override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
+    return true
+  }
 }
