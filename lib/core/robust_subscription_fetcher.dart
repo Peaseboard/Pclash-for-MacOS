@@ -1,48 +1,54 @@
 import 'dart:convert';
 import 'dart:io';
 
-/// Robust subscription fetcher with DNS over HTTPS fallback and Proxy support
-/// Solves DNS pollution issues common in China by resolving IPs via DoH
-/// when system DNS fails, and falls back to system proxy if needed.
+/// Robust subscription fetcher with intelligent fallback
 class RobustSubscriptionFetcher {
-  static const List<Map<String, String>> dohProviders = [
-    {'url': 'https://223.5.5.5/resolve', 'name': 'AliDNS'},
-    {'url': 'https://1.1.1.1/dns-query', 'name': 'Cloudflare'},
-  ];
-
   static Future<String> fetch(String url) async {
     final uri = Uri.parse(url);
     String? lastError;
 
+    // Attempt 1: Direct
     try {
-      print('[Fetcher] Attempting direct fetch...');
+      print('Attempting direct fetch...');
       final content = await _fetchDirect(uri);
       if (content.isNotEmpty) return content;
-    } catch (e) { lastError = e.toString(); }
+    } catch (e) {
+      print('Direct fetch failed: $e');
+      lastError = e.toString();
+    }
 
+    // Attempt 2: Local Clash Proxy (127.0.0.1:7890)
+    // Most common scenario: User has ClashX running.
     try {
-      print('[Fetcher] Attempting proxy fallback (127.0.0.1:7890)...');
-      final content = await _fetchViaProxy(uri, '127.0.0.1', 7890);
-      if (content.isNotEmpty) return content;
-    } catch (e) { lastError = e.toString(); }
+      print('Attempting Local Proxy (127.0.0.1:7890)...');
+      if (await _isPortOpen('127.0.0.1', 7890)) {
+        final content = await _fetchViaProxy(uri, '127.0.0.1', 7890);
+        if (content.isNotEmpty) return content;
+      } else {
+        print('Port 7890 not open, skipping...');
+      }
+    } catch (e) {
+      print('Proxy fetch failed: $e');
+      lastError = e.toString();
+    }
 
+    // Attempt 3: DoH (DNS over HTTPS)
+    // Resolves domain to IP, then fetches. Useful if DNS is poisoned but IP is not blocked.
     try {
-      print('[Fetcher] Attempting proxy fallback (127.0.0.1:7891)...');
-      final content = await _fetchViaProxy(uri, '127.0.0.1', 7891);
-      if (content.isNotEmpty) return content;
-    } catch (e) { lastError = e.toString(); }
-
-    try {
-      print('[Fetcher] Attempting DoH fallback...');
+      print('Attempting DoH fallback...');
       final content = await _fetchViaDoH(uri);
       if (content.isNotEmpty) return content;
-    } catch (e) { lastError = e.toString(); }
+    } catch (e) {
+      print('DoH fallback failed: $e');
+      lastError = e.toString();
+    }
 
-    throw Exception('Import failed. Please check network or proxy status.');
+    throw Exception('订阅导入失败: 请检查网络或代理设置。\\n错误详情: $lastError');
   }
 
   static Future<String> _fetchDirect(Uri uri) async {
     final client = HttpClient();
+    client.badCertificateCallback = (cert, host, port) => true;
     try {
       final request = await client.getUrl(uri);
       request.headers.set('User-Agent', 'ClashX/1.0.0');
@@ -54,9 +60,9 @@ class RobustSubscriptionFetcher {
 
   static Future<String> _fetchViaProxy(Uri uri, String host, int port) async {
     final client = HttpClient();
+    client.badCertificateCallback = (cert, host, port) => true;
+    client.findProxy = (url) => 'PROXY $host:$port';
     try {
-      client.findProxy = (url) => 'PROXY $host:$port';
-      client.badCertificateCallback = (c, h, p) => true;
       final request = await client.getUrl(uri);
       request.headers.set('User-Agent', 'ClashX/1.0.0');
       final response = await request.close();
@@ -66,43 +72,36 @@ class RobustSubscriptionFetcher {
   }
 
   static Future<String> _fetchViaDoH(Uri uri) async {
-    String? realIp;
-    for (final p in dohProviders) {
-      try {
-        realIp = await _resolveViaDoH(p['url']!, uri.host);
-        if (realIp != null) break;
-      } catch (e) {}
-    }
-    if (realIp == null) throw Exception('DoH resolution failed');
-    
-    final ipUri = uri.replace(host: realIp);
+    // Simplified DoH using Cloudflare
+    final dohUri = Uri.parse('https://cloudflare-dns.com/dns-query?name=${uri.host}&type=A');
     final client = HttpClient();
     try {
-      final request = await client.getUrl(ipUri);
-      request.headers.set('User-Agent', 'ClashX/1.0.0');
-      request.headers.set('Host', uri.host);
-      final response = await request.close();
-      if (response.statusCode == 200) return await response.transform(utf8.decoder).join();
-      throw Exception('HTTP ${response.statusCode}');
+      final req = await client.getUrl(dohUri);
+      req.headers.set('accept', 'application/dns-json');
+      final res = await req.close();
+      if (res.statusCode == 200) {
+        final body = await res.transform(utf8.decoder).join();
+        final json = jsonDecode(body) as Map;
+        final answers = json['Answer'] as List?;
+        if (answers != null && answers.isNotEmpty) {
+          final ip = answers[0]['data'] as String;
+          print('DoH resolved: $ip');
+          final ipUri = uri.replace(host: ip);
+          client.close(); // Close previous client
+          return _fetchDirect(ipUri); // Fetch directly via IP
+        }
+      }
+      throw Exception('DoH failed');
     } finally { client.close(); }
   }
 
-  static Future<String?> _resolveViaDoH(String baseUrl, String domain) async {
-    final client = HttpClient();
+  static Future<bool> _isPortOpen(String host, int port) async {
     try {
-      final request = await client.getUrl(Uri.parse("$baseUrl?name=$domain&type=A"));
-      final response = await request.close();
-      if (response.statusCode == 200) {
-        final body = await response.transform(utf8.decoder).join();
-        final data = jsonDecode(body) as Map<String, dynamic>;
-        final answers = data['Answer'] as List?;
-        if (answers != null) {
-          for (final a in answers) {
-            if (a['type'] == 1) return a['data'] as String?;
-          }
-        }
-      }
-      return null;
-    } finally { client.close(); }
+      final socket = await Socket.connect(host, port, timeout: Duration(seconds: 2));
+      socket.destroy();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 }
