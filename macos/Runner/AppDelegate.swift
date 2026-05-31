@@ -36,6 +36,7 @@ class AppDelegate: FlutterAppDelegate {
       
       // System Proxy Channel
       proxyChannel = FlutterMethodChannel(name: "com.pclash.app/proxy", binaryMessenger: controller.engine.binaryMessenger)
+      print(🔥 PROXY CHANNEL SETUP SUCCESS)
       proxyChannel.setMethodCallHandler { [weak self] call, result in
         self?.handleProxyMethod(call, result: result)
       }
