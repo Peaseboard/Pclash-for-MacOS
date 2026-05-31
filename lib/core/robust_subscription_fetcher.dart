@@ -1,11 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
 
-/// Robust subscription fetcher: Direct -> Hardcoded Proxy -> DoH (AliDNS)
+/// Robust subscription fetcher: Direct -> System Proxy -> Hardcoded Proxy -> DoH
 class RobustSubscriptionFetcher {
   static Future<String> fetch(String url) async {
-    // Trim whitespace to prevent "nodename nor servname" errors
+    // Normalize URL: trim whitespace and ensure scheme
     url = url.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'http://' + url;
+    }
+    
     final uri = Uri.parse(url);
     String? lastError;
 
@@ -19,7 +23,17 @@ class RobustSubscriptionFetcher {
       lastError = e.toString();
     }
 
-    // Attempt 2: Hardcoded Local Proxy (ClashX default HTTP port 7890)
+    // Attempt 2: System Proxy (Uses ClashX System Proxy settings)
+    try {
+      print('Attempting System Proxy (from Environment)...');
+      final content = await _fetchViaSystemProxy(uri);
+      if (content.isNotEmpty) return content;
+    } catch (e) {
+      print('System Proxy fetch failed: $e');
+      lastError = 'System Proxy: $e';
+    }
+
+    // Attempt 3: Hardcoded Local Proxy (ClashX default HTTP port 7890)
     try {
       print('Attempting Hardcoded Proxy (127.0.0.1:7890)...');
       if (await _isPortOpen('127.0.0.1', 7890)) {
@@ -31,9 +45,9 @@ class RobustSubscriptionFetcher {
       lastError = 'Proxy (7890): $e';
     }
 
-    // Attempt 3: DoH Fallback (AliDNS 223.5.5.5)
+    // Attempt 4: DoH Fallback (AliDNS 223.5.5.5)
     // Resolve domain to IP via AliDNS, then fetch by IP.
-    // This bypasses local DNS pollution/blocks entirely.
+    // This bypasses local DNS pollution/blocks.
     try {
       print('Attempting DoH Fallback (AliDNS)...');
       final content = await _fetchViaDoH(uri);
@@ -49,6 +63,20 @@ class RobustSubscriptionFetcher {
   static Future<String> _fetchDirect(Uri uri) async {
     final client = HttpClient();
     client.badCertificateCallback = (cert, host, port) => true;
+    try {
+      final request = await client.getUrl(uri);
+      request.headers.set('User-Agent', 'ClashX/1.0.0');
+      final response = await request.close();
+      if (response.statusCode == 200) return await response.transform(utf8.decoder).join();
+      throw Exception('HTTP ${response.statusCode}');
+    } finally { client.close(); }
+  }
+
+  static Future<String> _fetchViaSystemProxy(Uri uri) async {
+    final client = HttpClient();
+    client.badCertificateCallback = (cert, host, port) => true;
+    // Use the system's proxy configuration (which ClashX sets)
+    client.findProxy = HttpClient.findProxyFromEnvironment;
     try {
       final request = await client.getUrl(uri);
       request.headers.set('User-Agent', 'ClashX/1.0.0');
@@ -76,7 +104,7 @@ class RobustSubscriptionFetcher {
     final ip = await _resolveDnsOverHttps(uri.host);
     if (ip == null) throw Exception('Could not resolve IP via DoH');
 
-    // 2. Fetch via IP with Host header spoofing
+    // 2. Fetch via IP
     print('Resolved ${uri.host} to $ip, fetching via IP...');
     final ipUri = uri.replace(host: ip);
     final client = HttpClient();
@@ -84,7 +112,7 @@ class RobustSubscriptionFetcher {
     try {
       final request = await client.getUrl(ipUri);
       request.headers.set('User-Agent', 'ClashX/1.0.0');
-      request.headers.set('Host', uri.host); // Critical for Virtual Hosts/SNI
+      request.headers.set('Host', uri.host); // Critical: Host header must be original domain
       final response = await request.close();
       if (response.statusCode == 200) return await response.transform(utf8.decoder).join();
       throw Exception('HTTP ${response.statusCode}');
