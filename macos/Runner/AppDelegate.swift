@@ -7,6 +7,7 @@ class AppDelegate: FlutterAppDelegate {
   private var statusItem: NSStatusItem!
   private var statusMenu: NSMenu!
   private var channel: FlutterMethodChannel?
+  private var proxyChannel: FlutterMethodChannel?
   
   // Menu state
   private var isSystemProxyEnabled = false
@@ -34,7 +35,7 @@ class AppDelegate: FlutterAppDelegate {
       }
       
       // System Proxy Channel
-      let proxyChannel = FlutterMethodChannel(name: "com.pclash.app/proxy", binaryMessenger: controller.engine.binaryMessenger)
+      proxyChannel = FlutterMethodChannel(name: "com.pclash.app/proxy", binaryMessenger: controller.engine.binaryMessenger)
       proxyChannel.setMethodCallHandler { [weak self] call, result in
         self?.handleProxyMethod(call, result: result)
       }
