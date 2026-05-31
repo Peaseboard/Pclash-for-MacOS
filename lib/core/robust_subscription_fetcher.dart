@@ -1,154 +1,116 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 
 /// Robust subscription fetcher: Direct -> System Proxy -> Hardcoded Proxy -> DoH
 class RobustSubscriptionFetcher {
   static Future<String> fetch(String url) async {
-    // Normalize URL: trim whitespace and ensure scheme
+    // Normalize URL
     url = url.trim();
+    if (url.isEmpty) throw Exception('URL 为空');
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      url = 'http://' + url;
+      url = 'https://' + url;
     }
-    
     final uri = Uri.parse(url);
     String? lastError;
 
-    // Attempt 1: Direct
-    try {
-      print('Attempting direct fetch...');
-      final content = await _fetchDirect(uri);
-      if (content.isNotEmpty) return content;
-    } catch (e) {
-      print('Direct fetch failed: $e');
-      lastError = e.toString();
-    }
+    final headers = {'User-Agent': 'ClashX/1.0.0', 'Accept': '*/*'};
 
-    // Attempt 2: System Proxy (Uses ClashX System Proxy settings)
+    // 1. Direct
     try {
-      print('Attempting System Proxy (from Environment)...');
-      final content = await _fetchViaSystemProxy(uri);
-      if (content.isNotEmpty) return content;
-    } catch (e) {
-      print('System Proxy fetch failed: $e');
-      lastError = 'System Proxy: $e';
-    }
+      print('Attempting direct...');
+      final res = await http.get(uri, headers: headers).timeout(Duration(seconds: 10));
+      if (res.statusCode == 200) return res.body;
+    } catch (e) { lastError = 'Direct: $e'; }
 
-    // Attempt 3: Hardcoded Local Proxy (ClashX default HTTP port 7890)
+    // 2. System Proxy (Env Vars) - Checks http_proxy env var set by ClashX
     try {
-      print('Attempting Hardcoded Proxy (127.0.0.1:7890)...');
+      print('Attempting System Proxy (Env)...');
+      final client = _createEnvProxyClient();
+      if (client != null) {
+        final res = await client.get(uri, headers: headers).timeout(Duration(seconds: 10));
+        if (res.statusCode == 200) return res.body;
+      }
+    } catch (e) { lastError = 'System Proxy: $e'; }
+
+    // 3. Hardcoded Proxy (ClashX 7890) - IOClient is more robust than raw HttpClient
+    try {
+      print('Attempting Local Proxy (7890)...');
       if (await _isPortOpen('127.0.0.1', 7890)) {
-        final content = await _fetchViaProxy(uri, '127.0.0.1', 7890);
-        if (content.isNotEmpty) return content;
+        final client = _createHardcodedProxyClient('127.0.0.1', 7890);
+        final res = await client.get(uri, headers: headers).timeout(Duration(seconds: 15));
+        if (res.statusCode == 200) return res.body;
       }
-    } catch (e) {
-      print('Hardcoded Proxy fetch failed: $e');
-      lastError = 'Proxy (7890): $e';
-    }
+    } catch (e) { lastError = 'Local Proxy: $e'; }
 
-    // Attempt 4: DoH Fallback (AliDNS 223.5.5.5)
-    // Resolve domain to IP via AliDNS, then fetch by IP.
-    // This bypasses local DNS pollution/blocks.
+    // 4. DoH (AliDNS)
     try {
-      print('Attempting DoH Fallback (AliDNS)...');
-      final content = await _fetchViaDoH(uri);
-      if (content.isNotEmpty) return content;
-    } catch (e) {
-      print('DoH Fallback failed: $e');
-      lastError = 'DoH: $e';
-    }
-
-    throw Exception('订阅导入失败: 无法连接订阅服务器。\\n错误详情: $lastError');
-  }
-
-  static Future<String> _fetchDirect(Uri uri) async {
-    final client = HttpClient();
-    client.badCertificateCallback = (cert, host, port) => true;
-    try {
-      final request = await client.getUrl(uri);
-      request.headers.set('User-Agent', 'ClashX/1.0.0');
-      final response = await request.close();
-      if (response.statusCode == 200) return await response.transform(utf8.decoder).join();
-      throw Exception('HTTP ${response.statusCode}');
-    } finally { client.close(); }
-  }
-
-  static Future<String> _fetchViaSystemProxy(Uri uri) async {
-    final client = HttpClient();
-    client.badCertificateCallback = (cert, host, port) => true;
-    // Use the system's proxy configuration (which ClashX sets)
-    client.findProxy = HttpClient.findProxyFromEnvironment;
-    try {
-      final request = await client.getUrl(uri);
-      request.headers.set('User-Agent', 'ClashX/1.0.0');
-      final response = await request.close();
-      if (response.statusCode == 200) return await response.transform(utf8.decoder).join();
-      throw Exception('HTTP ${response.statusCode}');
-    } finally { client.close(); }
-  }
-
-  static Future<String> _fetchViaProxy(Uri uri, String host, int port) async {
-    final client = HttpClient();
-    client.badCertificateCallback = (cert, host, port) => true;
-    client.findProxy = (url) => 'PROXY $host:$port';
-    try {
-      final request = await client.getUrl(uri);
-      request.headers.set('User-Agent', 'ClashX/1.0.0');
-      final response = await request.close();
-      if (response.statusCode == 200) return await response.transform(utf8.decoder).join();
-      throw Exception('HTTP ${response.statusCode}');
-    } finally { client.close(); }
-  }
-
-  static Future<String> _fetchViaDoH(Uri uri) async {
-    // 1. Resolve IP using AliDNS (223.5.5.5)
-    final ip = await _resolveDnsOverHttps(uri.host);
-    if (ip == null) throw Exception('Could not resolve IP via DoH');
-
-    // 2. Fetch via IP
-    print('Resolved ${uri.host} to $ip, fetching via IP...');
-    final ipUri = uri.replace(host: ip);
-    final client = HttpClient();
-    client.badCertificateCallback = (cert, host, port) => true;
-    try {
-      final request = await client.getUrl(ipUri);
-      request.headers.set('User-Agent', 'ClashX/1.0.0');
-      request.headers.set('Host', uri.host); // Critical: Host header must be original domain
-      final response = await request.close();
-      if (response.statusCode == 200) return await response.transform(utf8.decoder).join();
-      throw Exception('HTTP ${response.statusCode}');
-    } finally { client.close(); }
-  }
-
-  static Future<String?> _resolveDnsOverHttps(String domain) async {
-    final url = 'https://223.5.5.5/resolve?name=$domain&type=A';
-    final uri = Uri.parse(url);
-    final client = HttpClient();
-    try {
-      final request = await client.getUrl(uri);
-      final response = await request.close();
-      if (response.statusCode == 200) {
-        final body = await response.transform(utf8.decoder).join();
-        final json = jsonDecode(body) as Map;
-        final answers = json['Answer'] as List?;
-        if (answers != null && answers.isNotEmpty) {
-          // Return the first A record
-          return answers[0]['data'] as String;
-        }
+      print('Attempting DoH (AliDNS)...');
+      final ip = await _resolveDnsOverHttps('https://223.5.5.5/resolve', uri.host);
+      if (ip != null) {
+        final ipUri = uri.replace(host: ip);
+        final client = http.Client();
+        final res = await client.get(ipUri, headers: {...headers, 'Host': uri.host}).timeout(Duration(seconds: 10));
+        if (res.statusCode == 200) return res.body;
       }
-      return null;
-    } catch (e) {
-      print('DoH resolve failed: $e');
-      return null;
-    } finally { client.close(); }
+    } catch (e) { lastError = 'DoH(AliDNS): $e'; }
+
+    // 5. DoH (Cloudflare)
+    try {
+      print('Attempting DoH (Cloudflare)...');
+      final ip = await _resolveDnsOverHttps('https://1.1.1.1/dns-query', uri.host);
+      if (ip != null) {
+        final ipUri = uri.replace(host: ip);
+        final client = http.Client();
+        final res = await client.get(ipUri, headers: {...headers, 'Host': uri.host}).timeout(Duration(seconds: 10));
+        if (res.statusCode == 200) return res.body;
+      }
+    } catch (e) { lastError = 'DoH(CF): $e'; }
+
+    throw Exception('导入失败: $lastError');
+  }
+
+  static http.Client? _createEnvProxyClient() {
+    final proxyEnv = Platform.environment['http_proxy'] ?? Platform.environment['HTTP_PROXY'];
+    if (proxyEnv == null) return null;
+    try {
+      final uri = Uri.parse(proxyEnv);
+      final ioClient = HttpClient();
+      ioClient.findProxy = (url) => 'PROXY ${uri.host}:${uri.port}';
+      ioClient.badCertificateCallback = (cert, host, port) => true;
+      return IOClient(ioClient);
+    } catch (e) { return null; }
+  }
+
+  static http.Client _createHardcodedProxyClient(String host, int port) {
+    final ioClient = HttpClient();
+    ioClient.findProxy = (url) => 'PROXY $host:$port';
+    ioClient.badCertificateCallback = (cert, host, port) => true;
+    return IOClient(ioClient);
   }
 
   static Future<bool> _isPortOpen(String host, int port) async {
     try {
-      final socket = await Socket.connect(host, port, timeout: Duration(seconds: 2));
+      final socket = await Socket.connect(host, port, timeout: Duration(seconds: 1));
       socket.destroy();
       return true;
-    } catch (_) {
-      return false;
-    }
+    } catch (_) { return false; }
+  }
+
+  static Future<String?> _resolveDnsOverHttps(String baseUrl, String domain) async {
+    final url = '$baseUrl?name=$domain&type=A';
+    final client = http.Client();
+    try {
+      final res = await client.get(Uri.parse(url), headers: {'accept': 'application/dns-json'}).timeout(Duration(seconds: 5));
+      if (res.statusCode == 200) {
+        final json = jsonDecode(res.body) as Map;
+        final answers = json['Answer'] as List?;
+        if (answers != null && answers.isNotEmpty) {
+          return answers[0]['data'] as String;
+        }
+      }
+    } catch (e) { print('DoH error: $e'); } finally { client.close(); }
+    return null;
   }
 }
