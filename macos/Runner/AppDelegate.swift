@@ -76,8 +76,7 @@ class AppDelegate: FlutterAppDelegate {
     }
   }
   
-  private func setupStatusBar()
-    setupProxyChannel() {
+  private func setupStatusBar() {
     print("PClash: Setting up status bar...")
     statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     
