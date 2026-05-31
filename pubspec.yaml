@@ -36,8 +36,8 @@ dependencies:
   http: ^1.2.0
   # UI Components
   fl_chart: ^0.68.0       # Traffic charts
-  file_picker: ^6.1.1     # Import local configs
-  share_plus: ^7.2.1      # Share configs
+  file_picker: ^8.0.0+1     # Import local configs
+  share_plus: ^10.0.0      # Share configs
   # Platform channel
   plugin_platform_interface: ^2.1.8
 

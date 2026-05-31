@@ -217,8 +217,8 @@ class AppDelegate: FlutterAppDelegate {
     // Edit
     let editItem = NSMenuItem()
     let editMenu = NSMenu(title: "编辑")
-    editMenu.addItem(NSMenuItem(title: "撤销", action: Selector("undo:"), keyEquivalent: "z"))
-    editMenu.addItem(NSMenuItem(title: "重做", action: Selector("redo:"), keyEquivalent: "Z"))
+    editMenu.addItem(NSMenuItem(title: "撤销", action: #selector(NSResponder.undo(_:)), keyEquivalent: "z"))
+    editMenu.addItem(NSMenuItem(title: "重做", action: #selector(NSResponder.redo(_:)), keyEquivalent: "Z"))
     editMenu.addItem(NSMenuItem.separator())
     editMenu.addItem(NSMenuItem(title: "剪切", action: #selector(NSText.cut(_:)), keyEquivalent: "x"))
     editMenu.addItem(NSMenuItem(title: "拷贝", action: #selector(NSText.copy(_:)), keyEquivalent: "c"))
