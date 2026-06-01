@@ -30,14 +30,12 @@ class AppDelegate: FlutterAppDelegate {
         self?.handleStatusBarMethodCall(call, result: result)
       }
       
-      // Fix: Optional unwrapping for macOS 26 compatibility
-      if let proxyCh = FlutterMethodChannel(name: "com.pclash.app/proxy", binaryMessenger: controller.engine.binaryMessenger) {
-        proxyChannel = proxyCh
-        proxyCh.setMethodCallHandler { [weak self] call, result in
-          self?.handleProxyMethod(call, result: result)
-        }
-        print("🔥 PROXY CHANNEL SETUP SUCCESS")
+      // Proxy Channel
+      proxyChannel = FlutterMethodChannel(name: "com.pclash.app/proxy", binaryMessenger: controller.engine.binaryMessenger)
+      proxyChannel?.setMethodCallHandler { [weak self] call, result in
+        self?.handleProxyMethod(call, result: result)
       }
+      print(" PROXY CHANNEL SETUP SUCCESS")
     }
     
     setupStatusBar()
