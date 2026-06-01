@@ -107,8 +107,7 @@ class AppDelegate: FlutterAppDelegate {
     
     let data = pipe.fileHandleForReading.readDataToEndOfFile()
     if let output = String(data: data, encoding: .utf8) {
-      let services = output.split(separator: "
-").map { String(/usr/bin/bash).trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !/usr/bin/bash.isEmpty && /usr/bin/bash != "*" }
+      let services = output.split(separator: "\n").map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty && $0 != "*" }
       
       var successCount = 0
       for service in services {
