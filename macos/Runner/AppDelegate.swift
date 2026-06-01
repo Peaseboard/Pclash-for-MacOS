@@ -24,14 +24,13 @@ class AppDelegate: FlutterAppDelegate {
     NSApp.setActivationPolicy(.regular)
     NSApplication.shared.mainMenu = createMainMenu()
     
-    if let controller = mainFlutterWindow?.contentViewController as? FlutterViewController {
-      channel = FlutterMethodChannel(name: "com.pclash.app/status_bar", binaryMessenger: controller.engine.binaryMessenger)
+    if let engine = self.engine {
+      channel = FlutterMethodChannel(name: "com.pclash.app/status_bar", binaryMessenger: engine.binaryMessenger)
       channel?.setMethodCallHandler { [weak self] call, result in
         self?.handleStatusBarMethodCall(call, result: result)
       }
       
-      // Proxy Channel
-      proxyChannel = FlutterMethodChannel(name: "com.pclash.app/proxy", binaryMessenger: controller.engine.binaryMessenger)
+      proxyChannel = FlutterMethodChannel(name: "com.pclash.app/proxy", binaryMessenger: engine.binaryMessenger)
       proxyChannel?.setMethodCallHandler { [weak self] call, result in
         self?.handleProxyMethod(call, result: result)
       }
